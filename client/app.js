@@ -14,6 +14,53 @@ var id = 4;
 var profile={
     username: 'Alice'
 };
+
+var Service={
+	origin: window.location.origin,
+	getAllRooms: function(){
+        return new Promise((resolve,reject) => {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Service.origin + "/chat");
+            xhr.onload = function() {
+                if (xhr.status==200) {
+                    var result = JSON.parse(xhr.responseText) ;
+                    resolve(result);
+                } else {	
+                    reject(new Error(xhr.responseText));
+                }
+            };		
+            xhr.onerror = function(err) {
+                    reject(new Error(err));
+            };  
+            xhr.onabort = function() {
+                    reject("Aborted");
+            };
+            xhr.send();
+        });
+	},
+    addRoom: function(data){
+        return new Promise((resolve,reject) => {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", Service.origin + "/chat");
+            xhr.onload = function() {
+                if (xhr.status==200) {
+                    var result = JSON.parse(xhr.responseText) ;
+                    resolve(result);
+                } else {	
+                    reject(new Error(xhr.responseText));
+                }
+            };		
+            xhr.onerror = function(err) {
+                    reject(new Error(err));
+            };  
+            xhr.onabort = function() {
+                    reject("Aborted");
+            };
+            xhr.setRequestHeader("Content-type", "application/json");
+            xhr.send(JSON.stringify(data));
+        });
+    }
+}
 class LobbyView {
     constructor(lobby) {
       this.lobby = lobby;
@@ -41,12 +88,18 @@ class LobbyView {
       this.inputElem = this.elem.querySelector("input");
       this.buttonElem = this.elem.querySelector("button");
       var that=this;
-      this.buttonElem.addEventListener('click',function(){ 
-          that.lobby.addRoom(id,that.inputElem.value.toString(),'assets/everyone-icon.png',[]);
-          that.inputElem.value='';
-          id++;
-        }
-      )
+      this.buttonElem.addEventListener('click', function(){
+                                        Service.addRoom({
+                                            "name":that.inputElem.value.toString(),
+                                            "image": 'assets/everyone-icon.png'
+                                        })
+                                        .then(
+                                            (result) => { 
+                                            that.lobby.addRoom(result.id,result.name,result.image,[]);
+                                            that.inputElem.value='';
+                                            id++; }
+                                        )
+                                            });
       this.lobby.onNewRoom=function(room){
         var item = document.createElement('li');
         var item2 = document.createElement('a');
@@ -71,7 +124,8 @@ class LobbyView {
 }
 
 class ChatView {
-    constructor() {
+    constructor(socket) {
+      this.socket=socket;
       this.elem = createDOM(
         `<div class="content">
         <h4 class="room-name"> </h4>
@@ -109,6 +163,12 @@ class ChatView {
     sendMessage(){
         var value=this.inputElem.value;
         this.room.addMessage(profile.username,value);
+        var that=this;
+        this.socket.send(JSON.stringify({
+            roomId:that.room.id,
+            username:profile.username,
+            text:value
+        }));
         this.inputElem.value = "";
     }
     setRoom(room){
@@ -204,12 +264,7 @@ class Room {
 
 class Lobby {
     constructor() {
-      this.rooms = {
-          "0" : new Room(0,'room0'), 
-          "1" : new Room(1,'room1'), 
-          "2" : new Room(2,'room2'),
-          "3" : new Room(3,'room3'),
-        };
+      this.rooms = {};
     }
     getRoom(roomId){
         for (var key in this.rooms) {
@@ -230,7 +285,8 @@ class Lobby {
 function main() {
     this.lobby=new Lobby();
     this.lobbyView = new LobbyView(this.lobby);
-    this.chatView = new ChatView();
+    this.socket = new WebSocket('ws://localhost:8000');
+    this.chatView = new ChatView(this.socket);
     this.profileView = new ProfileView();
     this.renderRoute=function() {
         if(window.location.hash=='#/'){
@@ -250,9 +306,32 @@ function main() {
             document.getElementById("page-view").appendChild(this.profileView.elem);
         }
     }
+    this.refreshLobby=function(){
+        Service.getAllRooms().then(
+            (result)=>{
+                for(var i=0;i<result.length;i++){
+                    if(result[i].id in this.lobby.rooms){
+                        this.lobby.rooms[result[i].id].name=result[i].name;
+                        this.lobby.rooms[result[i].id].image=result[i].image;
+                    }
+                    else{
+                        this.lobby.addRoom(result[i].id,result[i].name,result[i].image,result[i].messages);
+                    }
+                }
+            }
+        )
+    }
     renderRoute();
+    refreshLobby();
+    var interval = setInterval(refreshLobby, 6000);
     window.addEventListener("popstate", renderRoute);
-    cpen322.export(arguments.callee, { renderRoute,lobbyView,chatView,profileView,lobby});
+    var that=this;
+    socket.addEventListener('message', function (event) {
+        var r=JSON.parse(event.data);
+        var room=that.lobby.getRoom(r.roomId);
+        room.addMessage(r.username,r.text);
+    });
+    cpen322.export(arguments.callee, { renderRoute,lobbyView,chatView,profileView,lobby,refreshLobby,socket});
 }
 
 window.addEventListener("load", main);
