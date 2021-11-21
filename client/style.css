@@ -34,3 +34,9 @@ ul#app-menu li:hover {
 ul.room-list li:hover{
     background-color: orange;
 }
+
+.message-list {
+    overflow: scroll;
+    height: 60vh;
+    width: 100%;
+}

@@ -17,6 +17,27 @@ var profile={
 
 var Service={
 	origin: window.location.origin,
+    getLastConversation: function(roomId,before){
+        return new Promise((resolve,reject) => {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Service.origin + "/chat/" + roomId + "/messages?before=" + before);
+            xhr.onload = function() {
+                if (xhr.status==200) {
+                    var result = JSON.parse(xhr.responseText) ;
+                    resolve(result);
+                } else {	
+                    reject(new Error(xhr.responseText));
+                }
+            };		
+            xhr.onerror = function(err) {
+                    reject(new Error(err));
+            };  
+            xhr.onabort = function() {
+                    reject("Aborted");
+            };
+            xhr.send();
+        });
+    },
 	getAllRooms: function(){
         return new Promise((resolve,reject) => {
             var xhr = new XMLHttpRequest();
@@ -95,7 +116,7 @@ class LobbyView {
                                         })
                                         .then(
                                             (result) => { 
-                                            that.lobby.addRoom(result.id,result.name,result.image,[]);
+                                            that.lobby.addRoom(result._id,result.name,result.image,[]);
                                             that.inputElem.value='';
                                             id++; }
                                         )
@@ -159,6 +180,11 @@ class ChatView {
             that.sendMessage();
         }
     })
+    this.chatElem.addEventListener('wheel',function(event){
+        if(that.room.canLoadConversation && event.deltaY < 0 && that.chatElem.scrollTop==0){
+            that.room.getLastConversation.next();
+        }
+    })
     }
     sendMessage(){
         var value=this.inputElem.value;
@@ -212,6 +238,29 @@ class ChatView {
             div.appendChild(span2);
             that.chatElem.appendChild(div);
         }
+        this.room.onFetchConversation=function(conversation){
+            var hb = that.chatElem.scrollHeight;
+            for (var i=conversation.messages.length - 1; i>=0; i--) {
+                var div = document.createElement('div');
+                var span = document.createElement('span');
+                var span2 = document.createElement('span');
+                span.className='message-user';
+                span2.className='message-text';
+                span.innerText=conversation.messages[i].username;
+                span2.innerText=conversation.messages[i].text;
+                if(conversation.messages[i].username===profile.username){
+                    div.className='message my-message';
+                }
+                else{
+                    div.className='message';
+                }
+                div.appendChild(span);
+                div.appendChild(span2);
+                that.chatElem.insertBefore(div,that.chatElem.firstChild);
+            }
+            var ha = that.chatElem.scrollHeight;
+            that.chatElem.scrollTop = ha - hb;
+        }
     }
 }
 
@@ -241,12 +290,34 @@ class ProfileView {
     }
 }
 
+function* makeConversationLoader(room) {
+    var time= room.timestamp;
+    while (room.canLoadConversation) {
+        room.canLoadConversation = false; 
+        yield new Promise((resolve, reject) => {
+            Service.getLastConversation(room.id,time).then(result =>{  
+                if(result === null) {  
+                    room.canLoadConversation = false;             
+                    resolve(null);
+                } else {                            
+                    time=result.timestamp;
+                    room.canLoadConversation = true;
+                    room.addConversation(result);     
+                    resolve(result);
+                }
+            });
+        });
+    }
+}
 class Room {
     constructor(id, name, image='assets/everyone-icon.png', messages=[]) {
       this.id = id;
       this.name = name;
       this.image = image;
       this.messages = messages;
+      this.timestamp = Date.now();
+      this.canLoadConversation=true;
+      this.getLastConversation=makeConversationLoader(this);
     }
     addMessage(username, text){
         if(text==='') return;
@@ -258,6 +329,14 @@ class Room {
         this.messages.push(new message(username,text));
         if(this.onNewMessage !== undefined){
             this.onNewMessage(this.messages[this.messages.length-1]);
+        }
+    }
+    addConversation(conversation){     
+        for(var i=0; i<conversation.messages.length; i++) {
+            this.messages.push(conversation.messages[i]); 
+        }
+        if(this.onFetchConversation) {
+            this.onFetchConversation(conversation);
         }
     }
 }
@@ -310,12 +389,12 @@ function main() {
         Service.getAllRooms().then(
             (result)=>{
                 for(var i=0;i<result.length;i++){
-                    if(result[i].id in this.lobby.rooms){
-                        this.lobby.rooms[result[i].id].name=result[i].name;
-                        this.lobby.rooms[result[i].id].image=result[i].image;
+                    if(result[i]._id in this.lobby.rooms){
+                        this.lobby.rooms[result[i]._id].name=result[i].name;
+                        this.lobby.rooms[result[i]._id].image=result[i].image;
                     }
                     else{
-                        this.lobby.addRoom(result[i].id,result[i].name,result[i].image,result[i].messages);
+                        this.lobby.addRoom(result[i]._id,result[i].name,result[i].image,result[i].messages);
                     }
                 }
             }
