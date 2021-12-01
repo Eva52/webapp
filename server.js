@@ -79,11 +79,9 @@ function sanitize(string) {
 		'&': '&amp;',
 		'<': '&lt;',
 		'>': '&gt;',
-		'"': '&quot;',
-		"'": '&#x27;',
 	};
-	return string.replace(/[&<>"']/g, function(match){
-		match=prevent[match];
+	return string.replace(/[&<>]/ig, function(match){
+		return prevent[match];
 	});
 }
 broker.on("connection", function(ws,request){
@@ -114,7 +112,7 @@ broker.on("connection", function(ws,request){
 		}
 		broker.clients.forEach(client => {
 			if(client !== ws){
-				client.send(JSON.stringify({username: sessionManager.getUsername(cookie['cpen322-session']), text:sanitize(r.text)}));
+				client.send(JSON.stringify({roomId: r.roomId, username: sessionManager.getUsername(cookie['cpen322-session']), text:sanitize(r.text)}));
 			}
 		})
 	  });

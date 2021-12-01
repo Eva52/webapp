@@ -14,18 +14,6 @@ var id = 4;
 var profile={
     username: 'Alice'
 };
-function sanitize(string) {
-	const prevent = {
-		'&': '&amp;',
-		'<': '&lt;',
-		'>': '&gt;',
-		'"': '&quot;',
-		"'": '&#x27;',
-	};
-	return string.replace(/[&<>"']/g, function(match){
-		match=prevent[match];
-	});
-}
 
 var Service={
 	origin: window.location.origin,
@@ -279,8 +267,8 @@ class ChatView {
                 var span2 = document.createElement('span');
                 span.className='message-user';
                 span2.className='message-text';
-                span.innerText=conversation.messages[i].username;
-                span2.innerText=conversation.messages[i].text;
+                span.textContent=conversation.messages[i].username;
+                span2.textContent=conversation.messages[i].text;
                 if(conversation.messages[i].username===profile.username){
                     div.className='message my-message';
                 }
@@ -444,7 +432,7 @@ function main() {
     socket.addEventListener('message', function (event) {
         var r=JSON.parse(event.data);
         var room=that.lobby.getRoom(r.roomId);
-        room.addMessage(r.username,sanitize(r.text));
+        room.addMessage(r.username,r.text);
     });
     cpen322.export(arguments.callee, { renderRoute,lobbyView,chatView,profileView,lobby,refreshLobby,socket});
 }
