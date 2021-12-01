@@ -80,6 +80,27 @@ var Service={
             xhr.setRequestHeader("Content-type", "application/json");
             xhr.send(JSON.stringify(data));
         });
+    },
+    getProfile: function(){
+        return new Promise((resolve,reject) => {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", Service.origin + "/profile");
+            xhr.onload = function() {
+                if (xhr.status==200) {
+                    var result = JSON.parse(xhr.responseText) ;
+                    resolve(result);
+                } else {	
+                    reject(new Error(xhr.responseText));
+                }
+            };		
+            xhr.onerror = function(err) {
+                    reject(new Error(err));
+            };  
+            xhr.onabort = function() {
+                    reject("Aborted");
+            };
+            xhr.send();
+        });
     }
 }
 class LobbyView {
@@ -226,8 +247,8 @@ class ChatView {
             var span2 = document.createElement('span');
             span.className='message-user';
             span2.className='message-text';
-            span.innerText=message.username;
-            span2.innerText=message.text;
+            span.textContent=message.username;
+            span2.textContent=message.text;
             if(message.username===profile.username){
                 div.className='message my-message';
             }
@@ -362,11 +383,20 @@ class Lobby {
 }
 
 function main() {
+    this.socket = new WebSocket('ws://localhost:8000');
+    socket.addEventListener('message', function(event) {
+        var incomingMess = JSON.parse(event.data);
+        var selectedRoom = lobby.getRoom(incomingMess.roomId);
+        selectedRoom.addMessage(incomingMess.username, incomingMess.text);
+
+    });
     this.lobby=new Lobby();
     this.lobbyView = new LobbyView(this.lobby);
-    this.socket = new WebSocket('ws://localhost:8000');
     this.chatView = new ChatView(this.socket);
     this.profileView = new ProfileView();
+    Service.getProfile().then((result)=>{
+        profile=result;
+    })
     this.renderRoute=function() {
         if(window.location.hash=='#/'){
             emptyDOM(document.getElementById("page-view"));
@@ -404,12 +434,12 @@ function main() {
     refreshLobby();
     var interval = setInterval(refreshLobby, 6000);
     window.addEventListener("popstate", renderRoute);
-    var that=this;
-    socket.addEventListener('message', function (event) {
-        var r=JSON.parse(event.data);
-        var room=that.lobby.getRoom(r.roomId);
-        room.addMessage(r.username,r.text);
-    });
+    // var that=this;
+    // socket.addEventListener('message', function (event) {
+    //     var r=JSON.parse(event.data);
+    //     var room=that.lobby.getRoom(r.roomId);
+    //     room.addMessage(r.username,r.text);
+    // });
     cpen322.export(arguments.callee, { renderRoute,lobbyView,chatView,profileView,lobby,refreshLobby,socket});
 }
 
