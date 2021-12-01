@@ -14,6 +14,18 @@ var id = 4;
 var profile={
     username: 'Alice'
 };
+function sanitize(string) {
+	const prevent = {
+		'&': '&amp;',
+		'<': '&lt;',
+		'>': '&gt;',
+		'"': '&quot;',
+		"'": '&#x27;',
+	};
+	return string.replace(/[&<>"']/g, function(match){
+		match=prevent[match];
+	});
+}
 
 var Service={
 	origin: window.location.origin,
@@ -384,12 +396,6 @@ class Lobby {
 
 function main() {
     this.socket = new WebSocket('ws://localhost:8000');
-    socket.addEventListener('message', function(event) {
-        var incomingMess = JSON.parse(event.data);
-        var selectedRoom = lobby.getRoom(incomingMess.roomId);
-        selectedRoom.addMessage(incomingMess.username, incomingMess.text);
-
-    });
     this.lobby=new Lobby();
     this.lobbyView = new LobbyView(this.lobby);
     this.chatView = new ChatView(this.socket);
@@ -434,12 +440,12 @@ function main() {
     refreshLobby();
     var interval = setInterval(refreshLobby, 6000);
     window.addEventListener("popstate", renderRoute);
-    // var that=this;
-    // socket.addEventListener('message', function (event) {
-    //     var r=JSON.parse(event.data);
-    //     var room=that.lobby.getRoom(r.roomId);
-    //     room.addMessage(r.username,r.text);
-    // });
+    var that=this;
+    socket.addEventListener('message', function (event) {
+        var r=JSON.parse(event.data);
+        var room=that.lobby.getRoom(r.roomId);
+        room.addMessage(r.username,sanitize(r.text));
+    });
     cpen322.export(arguments.callee, { renderRoute,lobbyView,chatView,profileView,lobby,refreshLobby,socket});
 }
 
