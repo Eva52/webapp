@@ -6,7 +6,6 @@ const Database = require('./Database');
 const SessionManager = require('./SessionManager');
 const crypto = require('crypto');
 const express = require('express');
-const e = require('express');
 
 function logRequest(req, res, next){
 	console.log(`${new Date()}  ${req.ip} : ${req.method} ${req.path}`);
@@ -200,5 +199,4 @@ app.use(function (err, req, res, next) {
 	}
   })
 
-cpen322.connect('http://99.79.42.146/cpen322/test-a5-server.js');
 cpen322.export(__filename, { app,messages,broker,db,messageBlockSize,sessionManager,isCorrectPassword});
